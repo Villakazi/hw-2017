@@ -1,58 +1,65 @@
-#include "process.h"
-#include "shell.h"
 #include <errno.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <termios.h>
 
+#include "process.h"
+#include "shell.h"
+
 /**
- *  Executes the process p.
- *  If the shell is in interactive mode and the process is a foreground process,
- *  then p should take control of the terminal.
- *
+ * Executes the program pointed by process name
  */
-void launch_process(process *p) {
-    /** TODO **/
+void launch_process(char *process_name) {
+  /** YOUR CODE HERE */
 }
 
 /**
- *  Put a process in the foreground. This function assumes that the shell
- *  is in interactive mode. If the cont argument is true, send the process
- *  group a SIGCONT signal to wake it up.
+ * Puts a process group with id PID into the foreground. Restores terminal
+ * settings from *tmodes. Waits until the process with id PID exits or pauses.
+ * Then, saves the current terminal settings into *tmodes. Finally, puts the
+ * shell back into the foreground and restores terminal settings from
+ * shell_tmodes.
+ *
+ *     pid
+ *     cont   -- Send a SIGCONT to the process group to make it resume if it was
+ *               paused.
+ *     tmodes -- A pointer to some memory to save terminal settings for this
+ *               process. If this process is a new process, you should copy
+ *               settings from shell_tmodes to start out with.
+ *               Can be NULL to ignore terminal settings.
  *
  */
-void put_process_in_foreground (process *p, int cont) {
-    /** TODO **/
+void put_process_in_foreground(pid_t pid, bool cont, struct termios *tmodes) {
+  int status;
+  /* Put the job into the foreground. */
+  tcsetpgrp(shellterminal, pid);
+  if (tmodes)
+    tcsetattr(shellterminal, TCSADRAIN, tmodes);
+  /* Send the job a continue signal, if necessary. */
+  if (cont && kill(-pid, SIGCONT) < 0)
+    perror ("kill (SIGCONT)");
+  /* Wait for the process to report. */
+  waitpid(pid, &status, WUNTRACED);
+  /* Put the shell back in the foreground. */
+  tcsetpgrp(shellterminal, shell_pgid);
+  /* Restore the shell's terminal modes. */
+  if (tmodes)
+    tcgetattr(shellterminal, tmodes);
+  tcsetattr(shellterminal, TCSADRAIN, &shell_tmodes);
 }
 
 /**
- *  Put a process in the background. If the cont argument is true, send
- *  the process group a SIGCONT signal to wake it up. 
+ * Put a job in the background.
+ *
+ *     pid
+ *     cont -- Send the process group a SIGCONT signal to wake it up.
  *
  */
-void put_process_in_background (process *p, int cont) {
-    /** TODO **/
-}
-
-/**
- *  Prints the list of processes.
- *
- */
-void print_process_list(void) {
-    process* curr = first_process;
-    while(curr) {
-        if(!curr->completed) {
-            printf("\n");
-            printf("PID: %d\n",curr->pid);
-            printf("Name: %s\n",curr->argv[0]);
-            printf("Status: %d\n",curr->status);
-            printf("Completed: %s\n",(curr->completed)?"true":"false");
-            printf("Stopped: %s\n",(curr->stopped)?"true":"false");
-            printf("Background: %s\n",(curr->background)?"true":"false");
-            printf("Prev: %lx\n",(unsigned long)curr->prev);
-            printf("Next: %lx\n",(unsigned long)curr->next);
-        }
-        curr=curr->next;
-    }
+void put_process_in_background(pid_t pid, bool cont) {
+  /* Send the job a continue signal, if necessary. */
+  if (cont && kill(-pid, SIGCONT) < 0)
+    perror("kill (SIGCONT)");
 }
